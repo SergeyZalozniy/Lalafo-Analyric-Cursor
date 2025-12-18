@@ -89,7 +89,7 @@
 - [x] Test HTTP error handling (mock 404, 403, timeout responses)
 - [x] Test input type detection with various inputs (file paths, URLs, invalid strings)
 - [x] Test that CSV and Google Sheets inputs produce identical output for equivalent data
-- **Validation**: All unit tests pass (19 tests); code coverage includes new logic
+- **Validation**: All unit tests pass (36 tests using unittest); code coverage includes new logic
 
 ### Task 3.2: Add integration test with public Google Sheet
 - [x] Create or identify a stable public Google Sheet for testing

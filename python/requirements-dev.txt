@@ -1,1 +1,2 @@
-pytest>=7.0.0
+# Development dependencies
+# All tests use unittest (Python standard library), no external test framework needed

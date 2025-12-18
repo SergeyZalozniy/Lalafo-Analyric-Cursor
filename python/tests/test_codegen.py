@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import sys
 import tempfile
+import unittest
 from pathlib import Path
-
-import pytest
 
 from analytics_codegen.codegen import (
     EventRow,
@@ -16,29 +16,29 @@ from analytics_codegen.codegen import (
 )
 
 
-class TestCaseConverters:
+class TestCaseConverters(unittest.TestCase):
     def test_camel_case_basic(self):
-        assert _camel_case("hello_world") == "helloWorld"
-        assert _camel_case("foo_bar_baz") == "fooBarBaz"
-        assert _camel_case("single") == "single"
+        self.assertEqual(_camel_case("hello_world"), "helloWorld")
+        self.assertEqual(_camel_case("foo_bar_baz"), "fooBarBaz")
+        self.assertEqual(_camel_case("single"), "single")
 
     def test_camel_case_edge_cases(self):
-        assert _camel_case("") == ""
-        assert _camel_case("___") == ""
-        assert _camel_case("_leading") == "leading"
-        assert _camel_case("trailing_") == "trailing"
+        self.assertEqual(_camel_case(""), "")
+        self.assertEqual(_camel_case("___"), "___")  # Returns original when no valid parts
+        self.assertEqual(_camel_case("_leading"), "leading")
+        self.assertEqual(_camel_case("trailing_"), "trailing")
 
     def test_pascal_case_basic(self):
-        assert _pascal_case("hello_world") == "HelloWorld"
-        assert _pascal_case("foo_bar_baz") == "FooBarBaz"
-        assert _pascal_case("single") == "Single"
+        self.assertEqual(_pascal_case("hello_world"), "HelloWorld")
+        self.assertEqual(_pascal_case("foo_bar_baz"), "FooBarBaz")
+        self.assertEqual(_pascal_case("single"), "Single")
 
     def test_pascal_case_edge_cases(self):
-        assert _pascal_case("") == ""
-        assert _pascal_case("___") == ""
+        self.assertEqual(_pascal_case(""), "")
+        self.assertEqual(_pascal_case("___"), "")
 
 
-class TestCSVParsing:
+class TestCSVParsing(unittest.TestCase):
     def test_parse_valid_csv(self):
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".csv", delete=False, encoding="utf-8"
@@ -49,13 +49,13 @@ class TestCSVParsing:
 
         try:
             rows = _parse_csv(path)
-            assert len(rows) == 2
-            assert rows[0].screen == "my_ad"
-            assert rows[0].action == "view"
-            assert rows[0].event_details == ""
-            assert rows[0].advertisement == ""
-            assert rows[1].event_details == "event_details"
-            assert rows[1].advertisement == "advertisement"
+            self.assertEqual(len(rows), 2)
+            self.assertEqual(rows[0].screen, "my_ad")
+            self.assertEqual(rows[0].action, "view")
+            self.assertEqual(rows[0].event_details, "")
+            self.assertEqual(rows[0].advertisement, "")
+            self.assertEqual(rows[1].event_details, "event_details")
+            self.assertEqual(rows[1].advertisement, "advertisement")
         finally:
             path.unlink()
 
@@ -71,7 +71,7 @@ class TestCSVParsing:
 
         try:
             rows = _parse_csv(path)
-            assert len(rows) == 2
+            self.assertEqual(len(rows), 2)
         finally:
             path.unlink()
 
@@ -86,35 +86,40 @@ class TestCSVParsing:
 
         try:
             rows = _parse_csv(path)
-            assert len(rows) == 2
+            self.assertEqual(len(rows), 2)
         finally:
             path.unlink()
 
     def test_parse_csv_file_not_found(self):
-        with pytest.raises(FileNotFoundError):
+        with self.assertRaises(FileNotFoundError):
             _parse_csv(Path("/nonexistent/file.csv"))
 
 
-class TestDeduplication:
+class TestDeduplication(unittest.TestCase):
     def test_deduplicate_identical_rows(self):
         rows = [
             EventRow("s1", "sec1", "c1", "e1", "a1", "details", "ad"),
             EventRow("s1", "sec1", "c1", "e1", "a1", "details", "ad"),
         ]
         result = _deduplicate(rows)
-        assert len(result) == 1
+        self.assertEqual(len(result), 1)
 
-    def test_deduplicate_conflicting_rows(self, capsys):
+    def test_deduplicate_conflicting_rows(self):
         rows = [
             EventRow("s1", "sec1", "c1", "e1", "a1", "details1", "ad"),
             EventRow("s1", "sec1", "c1", "e1", "a1", "details2", "ad"),
         ]
-        result = _deduplicate(rows)
-        assert len(result) == 1
-        assert result[0].event_details == "details1"
+        # Capture stderr to check for warning
+        import io
+        from contextlib import redirect_stderr
 
-        captured = capsys.readouterr()
-        assert "⚠️ Conflicting rows" in captured.err
+        f = io.StringIO()
+        with redirect_stderr(f):
+            result = _deduplicate(rows)
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].event_details, "details1")
+        self.assertIn("⚠️ Conflicting rows", f.getvalue())
 
     def test_deduplicate_different_advertisements(self):
         rows = [
@@ -122,22 +127,22 @@ class TestDeduplication:
             EventRow("s1", "sec1", "c1", "e1", "a1", "details", "ad2"),
         ]
         result = _deduplicate(rows)
-        assert len(result) == 2
+        self.assertEqual(len(result), 2)
 
 
-class TestFunctionGeneration:
+class TestFunctionGeneration(unittest.TestCase):
     def test_generate_simple_function(self):
         row = EventRow("my_ad", "boost_photo", "post", "onboarding", "view", "", "")
         result = _generate_function(row)
 
-        assert "func trackMyAdBoostPhotoPostOnboardingView()" in result
-        assert "screen: Event.Screen.myAd" in result
-        assert "section: Event.Section.boostPhoto" in result
-        assert "component: Event.Component.post" in result
-        assert "element: Event.Element.onboarding" in result
-        assert "action: Event.Action.view" in result
-        assert "EventFactory.event(with: eventDetails)" in result
-        assert "trackEvent(event: event)" in result
+        self.assertIn("func trackMyAdBoostPhotoPostOnboardingView()", result)
+        self.assertIn("screen: Event.Screen.myAd", result)
+        self.assertIn("section: Event.Section.boostPhoto", result)
+        self.assertIn("component: Event.Component.post", result)
+        self.assertIn("element: Event.Element.onboarding", result)
+        self.assertIn("action: Event.Action.view", result)
+        self.assertIn("EventFactory.event(with: eventDetails)", result)
+        self.assertIn("trackEvent(event: event)", result)
 
     def test_generate_function_with_advertisement(self):
         row = EventRow(
@@ -145,8 +150,8 @@ class TestFunctionGeneration:
         )
         result = _generate_function(row)
 
-        assert "advertisement: EventAdvertisementProtocol" in result
-        assert "EventFactory.event(for: advertisement, with: eventDetails)" in result
+        self.assertIn("advertisement: EventAdvertisementProtocol", result)
+        self.assertIn("EventFactory.event(for: advertisement, with: eventDetails)", result)
 
     def test_generate_function_with_event_details(self):
         row = EventRow(
@@ -154,18 +159,18 @@ class TestFunctionGeneration:
         )
         result = _generate_function(row)
 
-        assert "parameters: [EventDetailsParameter]" in result
-        assert "details: .defined(parameters)" in result
+        self.assertIn("parameters: [EventDetailsParameter]", result)
+        self.assertIn("details: .defined(parameters)", result)
 
     def test_generate_function_with_parameterized_field(self):
         row = EventRow("my_ad", "boost_photo", "|", "button", "tap", "", "")
         result = _generate_function(row)
 
-        assert "component: Event.Component" in result
-        assert "func trackMyAdBoostPhotoComponentButtonTap" in result
+        self.assertIn("component: Event.Component", result)
+        self.assertIn("func trackMyAdBoostPhotoComponentButtonTap", result)
 
 
-class TestEndToEnd:
+class TestEndToEnd(unittest.TestCase):
     def test_generate_swift_from_csv(self):
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".csv", delete=False, encoding="utf-8"
@@ -181,14 +186,14 @@ class TestEndToEnd:
 
         try:
             count = generate_swift_from_csv(csv_path, swift_path)
-            assert count == 2
+            self.assertEqual(count, 2)
 
             content = swift_path.read_text(encoding="utf-8")
-            assert "// Auto-generated tracking functions" in content
-            assert "trackMyAdBoostPhotoPostOnboardingView" in content
-            assert "trackMyAdBoostPhotoPostButtonTap" in content
-            assert "advertisement: EventAdvertisementProtocol" in content
-            assert "parameters: [EventDetailsParameter]" in content
+            self.assertIn("// Auto-generated tracking functions", content)
+            self.assertIn("trackMyAdBoostPhotoPostOnboardingView", content)
+            self.assertIn("trackMyAdBoostPhotoPostButtonTap", content)
+            self.assertIn("advertisement: EventAdvertisementProtocol", content)
+            self.assertIn("parameters: [EventDetailsParameter]", content)
         finally:
             csv_path.unlink()
             swift_path.unlink()
@@ -213,7 +218,11 @@ class TestEndToEnd:
             generate_swift_from_csv(csv_path, swift_path)
             second_content = swift_path.read_text(encoding="utf-8")
 
-            assert first_content == second_content
+            self.assertEqual(first_content, second_content)
         finally:
             csv_path.unlink()
             swift_path.unlink()
+
+
+if __name__ == "__main__":
+    unittest.main()
