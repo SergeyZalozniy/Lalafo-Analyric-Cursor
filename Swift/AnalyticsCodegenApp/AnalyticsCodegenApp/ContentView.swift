@@ -9,15 +9,34 @@ struct ContentView: View {
     @State private var isRunning: Bool = false
 
     @State private var showingCSVImporter: Bool = false
+    @State private var selectedPlatform: Platform = .ios
 
-    // Adjust to where your repo with python/analytics_codegen lives
-    private let projectRoot = "/Users/s.zalozniy/Desktop/Lalafo-Analyric-Cursor"
+    // Calculated repo root where `python/analytics_codegen` lives
+    // Assumes the repo is at `~/Desktop/Lalafo-Analyric-Cursor`
+    private var projectRoot: String {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        return home
+            .appendingPathComponent("Desktop")
+            .appendingPathComponent("Lalafo-Analyric-Cursor")
+            .path
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Analytics Tracking Generator")
                 .font(.title2)
                 .bold()
+
+            // Platform selection (locked to iOS for now)
+            Picker("", selection: $selectedPlatform) {
+                Text("android").tag(Platform.android)
+                Text("ios").tag(Platform.ios)
+                Text("web").tag(Platform.web)
+                Text("web-mobile").tag(Platform.webMobile)
+            }
+            .pickerStyle(.segmented)
+            .disabled(true) // lock selection on iOS
+            .frame(maxWidth: .infinity)
 
             HStack {
                 Text("CSV file:")
@@ -37,15 +56,34 @@ struct ContentView: View {
                 }
             }
 
-            HStack {
+            HStack(spacing: 8) {
                 Button(action: runGenerator) {
                     if isRunning {
-                        ProgressView().scaleEffect(0.7)
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
                     } else {
                         Text("Generate")
+                            .frame(maxWidth: .infinity)
                     }
                 }
+                .frame(width: 120, height: 32)
+                .buttonStyle(.borderedProminent)
+                .tint(
+                    isRunning || csvPath.isEmpty || outputPath.isEmpty
+                    ? Color(nsColor: .systemGray)
+                    : Color(nsColor: .systemGreen)
+                )
                 .disabled(isRunning || csvPath.isEmpty || outputPath.isEmpty)
+
+                Button(action: {
+                    NSApp.terminate(nil)
+                }) {
+                    Text("Exit")
+                        .frame(maxWidth: .infinity)
+                }
+                .frame(width: 120, height: 32)
+                .buttonStyle(.borderedProminent)
+                .tint(Color(nsColor: .systemRed))
 
                 Spacer()
             }
@@ -62,9 +100,7 @@ struct ContentView: View {
         }
         .padding(20)
         .onAppear {
-            if outputPath.isEmpty {
-                outputPath = "\(projectRoot)/Swift/GeneratedTrackingFunctions.swift"
-            }
+            loadLastPaths()
         }
         .fileImporter(
             isPresented: $showingCSVImporter,
@@ -84,10 +120,30 @@ struct ContentView: View {
 
     // MARK: - Generator
 
+    private func loadLastPaths() {
+        if let lastCSV = PathPreferences.loadCSVPath() {
+            csvPath = lastCSV
+        }
+        if let lastOutput = PathPreferences.loadOutputPath() {
+            outputPath = lastOutput
+        } else {
+            // Default if nothing stored yet
+            outputPath = "\(projectRoot)/Swift/GeneratedTrackingFunctions.swift"
+        }
+    }
+
+    private func storeLastPaths() {
+        PathPreferences.store(csvPath: csvPath, outputPath: outputPath)
+    }
+
     @MainActor
     private func pickOutput() {
         let panel = NSSavePanel()
-        panel.allowedFileTypes = ["swift"]
+        if #available(macOS 12.0, *) {
+            panel.allowedContentTypes = [UTType.swiftSource]
+        } else {
+            panel.allowedFileTypes = ["swift"]
+        }
         panel.canCreateDirectories = true
         panel.nameFieldStringValue = "GeneratedTrackingFunctions.swift"
 
@@ -108,6 +164,8 @@ struct ContentView: View {
                 outputPath: outputPath
             )
 
+            storeLastPaths()
+
             DispatchQueue.main.async {
                 self.isRunning = false
                 self.logText += result
@@ -115,4 +173,14 @@ struct ContentView: View {
         }
     }
 }
+
+enum Platform: String, CaseIterable, Identifiable {
+    case android
+    case ios
+    case web
+    case webMobile
+
+    var id: String { rawValue }
+}
+
 
