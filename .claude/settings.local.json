@@ -1,16 +1,5 @@
 {
   "awsAuthRefresh": "aws sso login --profile claudecode",
-  "env": {
-    "AWS_PROFILE": "claudecode",
-    "CLAUDE_CODE_USE_BEDROCK": "1",
-    "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
-    "OTEL_METRICS_EXPORTER": "otlp",
-    "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT": "https://mimir.yallasvc.net/v1/metrics",
-    "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
-    "OTEL_EXPORTER_OTLP_HEADERS": "Authorization=Basic Y2xhdWRlOmtyRjlHRWIwdDd3QjdtMk9BS2psN001U2tlTWFFOGE3",
-    "OTEL_RESOURCE_ATTRIBUTES": "email=sergiy.zalozniy@lalafo.com",
-    "OTEL_METRIC_EXPORT_INTERVAL": "3000"
-  },
   "permissions": {
     "allow": [
       "Bash(openspec:*)",
