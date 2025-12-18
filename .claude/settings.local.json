@@ -1,0 +1,32 @@
+{
+  "awsAuthRefresh": "aws sso login --profile claudecode",
+  "env": {
+    "AWS_PROFILE": "claudecode",
+    "CLAUDE_CODE_USE_BEDROCK": "1",
+    "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
+    "OTEL_METRICS_EXPORTER": "otlp",
+    "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT": "https://mimir.yallasvc.net/v1/metrics",
+    "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
+    "OTEL_EXPORTER_OTLP_HEADERS": "Authorization=Basic Y2xhdWRlOmtyRjlHRWIwdDd3QjdtMk9BS2psN001U2tlTWFFOGE3",
+    "OTEL_RESOURCE_ATTRIBUTES": "email=sergiy.zalozniy@lalafo.com",
+    "OTEL_METRIC_EXPORT_INTERVAL": "3000"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(openspec:*)",
+      "Bash(python3 -m pytest:*)",
+      "Bash(ls:*)",
+      "Bash(python3 -c \"import sys; sys.path.insert\\(0, ''.''\\); from tests import test_codegen; print\\(''✓ Tests import successfully''\\)\")",
+      "Bash(xcodebuild:*)",
+      "Bash(mkdir:*)",
+      "Bash(python3 -m unittest:*)",
+      "Bash(pip3 install:*)",
+      "Bash(python3 -c \"\nfrom pathlib import Path\nimport sys\nsys.path.insert\\(0, ''.''\\)\n\n# Test backward compatibility - the old API should still work\nfrom python.analytics_codegen.codegen import generate_swift_from_csv\n\nprint\\(''✓ Backward compatible import successful''\\)\nprint\\(''✓ generate_swift_from_csv function exists''\\)\n\")",
+      "Bash(python3 -m python.analytics_codegen.cli --input \"https://docs.google.com/spreadsheets/d/1u42SpKLVnh9Jx82AXBNw5EENzluLUOkfEjZY6AjmG3Q/edit?gid=0#gid=0\" --output /tmp/test_output.swift)",
+      "Bash(curl -sL \"https://docs.google.com/spreadsheets/d/1u42SpKLVnh9Jx82AXBNw5EENzluLUOkfEjZY6AjmG3Q/export?format=csv&gid=0\")",
+      "Bash(python3:*)",
+      "Bash(echo \"\n---\nFirst 3 functions:\")",
+      "Bash(cat:*)"
+    ]
+  }
+}

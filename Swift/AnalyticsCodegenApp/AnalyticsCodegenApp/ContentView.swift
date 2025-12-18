@@ -2,8 +2,17 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
+enum InputMode: String, CaseIterable, Identifiable {
+    case file = "File"
+    case googleSheets = "Google Sheets"
+
+    var id: String { rawValue }
+}
+
 struct ContentView: View {
+    @State private var inputMode: InputMode = .file
     @State private var csvPath: String = ""
+    @State private var googleSheetsURL: String = ""
     @State private var outputPath: String = ""
     @State private var logText: String = ""
     @State private var isRunning: Bool = false
@@ -38,12 +47,30 @@ struct ContentView: View {
             .disabled(true) // lock selection on iOS
             .frame(maxWidth: .infinity)
 
-            HStack {
-                Text("CSV file:")
-                TextField("Select analytics.csv…", text: $csvPath)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                Button("Browse…") {
-                    showingCSVImporter = true
+            // Input mode selection
+            Picker("Input Source", selection: $inputMode) {
+                ForEach(InputMode.allCases) { mode in
+                    Text(mode.rawValue).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .frame(maxWidth: .infinity)
+
+            // Conditional input UI based on mode
+            if inputMode == .file {
+                HStack {
+                    Text("CSV file:")
+                    TextField("Select analytics.csv…", text: $csvPath)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                    Button("Browse…") {
+                        showingCSVImporter = true
+                    }
+                }
+            } else {
+                HStack {
+                    Text("Sheets URL:")
+                    TextField("https://docs.google.com/spreadsheets/d/...", text: $googleSheetsURL)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
                 }
             }
 
@@ -69,11 +96,11 @@ struct ContentView: View {
                 .frame(width: 120, height: 32)
                 .buttonStyle(.borderedProminent)
                 .tint(
-                    isRunning || csvPath.isEmpty || outputPath.isEmpty
+                    isRunning || !isInputValid() || outputPath.isEmpty
                     ? Color(nsColor: .systemGray)
                     : Color(nsColor: .systemGreen)
                 )
-                .disabled(isRunning || csvPath.isEmpty || outputPath.isEmpty)
+                .disabled(isRunning || !isInputValid() || outputPath.isEmpty)
 
                 Button(action: {
                     NSApp.terminate(nil)
@@ -118,6 +145,16 @@ struct ContentView: View {
         }
     }
 
+    // MARK: - Validation
+
+    private func isInputValid() -> Bool {
+        if inputMode == .file {
+            return !csvPath.isEmpty
+        } else {
+            return !googleSheetsURL.isEmpty && googleSheetsURL.starts(with: "https://")
+        }
+    }
+
     // MARK: - Generator
 
     private func loadLastPaths() {
@@ -130,10 +167,21 @@ struct ContentView: View {
             // Default if nothing stored yet
             outputPath = "\(projectRoot)/Swift/GeneratedTrackingFunctions.swift"
         }
+        if let lastMode = PathPreferences.loadInputMode() {
+            inputMode = lastMode
+        }
+        if let lastURL = PathPreferences.loadGoogleSheetsURL() {
+            googleSheetsURL = lastURL
+        }
     }
 
     private func storeLastPaths() {
-        PathPreferences.store(csvPath: csvPath, outputPath: outputPath)
+        PathPreferences.store(
+            csvPath: csvPath,
+            outputPath: outputPath,
+            inputMode: inputMode,
+            googleSheetsURL: googleSheetsURL
+        )
     }
 
     @MainActor
@@ -153,14 +201,21 @@ struct ContentView: View {
     }
 
     private func runGenerator() {
-        guard !csvPath.isEmpty, !outputPath.isEmpty else { return }
+        guard isInputValid(), !outputPath.isEmpty else { return }
         isRunning = true
         logText = "Running generator…\n"
 
         DispatchQueue.global(qos: .userInitiated).async {
+            let inputArg: String
+            if inputMode == .file {
+                inputArg = csvPath
+            } else {
+                inputArg = googleSheetsURL
+            }
+
             let result = runPythonGenerator(
                 projectRoot: projectRoot,
-                csvPath: csvPath,
+                inputPath: inputArg,
                 outputPath: outputPath
             )
 

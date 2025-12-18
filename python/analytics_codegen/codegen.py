@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import csv
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
+
+from .input_source import InputSource
 
 
 @dataclass(frozen=True)
@@ -27,6 +30,55 @@ def _camel_case(value: str) -> str:
 
 def _pascal_case(value: str) -> str:
     return "".join(p.capitalize() for p in value.strip().split("_") if p)
+
+
+def _remove_cyrillic(text: str) -> str:
+    """
+    Remove Cyrillic characters and clean up the text.
+
+    Args:
+        text: Input text that may contain Cyrillic
+
+    Returns:
+        Text with Cyrillic removed and cleaned up
+    """
+    # Remove Cyrillic characters (Ukrainian, Russian, etc.)
+    text = re.sub(r'[\u0400-\u04FF]+', ' ', text)
+    # Clean up multiple spaces and hyphens
+    text = re.sub(r'\s*-\s*', ' ', text)
+    text = re.sub(r'\s+', ' ', text)
+    return text.strip()
+
+
+def _split_variants(text: str) -> List[str]:
+    """
+    Split text into variants if it contains multiple snake_case identifiers.
+
+    Examples:
+        "reach_category_advertise_button" -> ["reach_category_advertise_button"]
+        "reach_category_advertise_button reach_category_after_posting" ->
+            ["reach_category_advertise_button", "reach_category_after_posting"]
+
+    Args:
+        text: Input text potentially containing multiple variants
+
+    Returns:
+        List of variant strings
+    """
+    # First, remove Cyrillic text
+    cleaned = _remove_cyrillic(text)
+
+    # Split by whitespace
+    parts = cleaned.split()
+
+    # Filter out empty strings and very short words (likely artifacts)
+    variants = [p.strip() for p in parts if p.strip() and len(p.strip()) > 2]
+
+    # If no valid variants found, return the original cleaned text
+    if not variants:
+        return [cleaned] if cleaned else [text]
+
+    return variants
 
 
 def _process_field(
@@ -113,18 +165,73 @@ def _generate_function(row: EventRow) -> str:
     return "\n".join(lines)
 
 
-def _parse_csv(path: Path) -> List[EventRow]:
-    if not path.is_file():
-        raise FileNotFoundError(f"Input file not found: {path}")
+def _parse_csv_rows(csv_rows: List[List[str]]) -> List[EventRow]:
+    """
+    Parse CSV rows into EventRow objects.
+
+    Supports two formats:
+    1. With header row: Detects columns by name (screen:, component:, etc.)
+    2. Without header row: Uses positional columns (legacy format)
+
+    Args:
+        csv_rows: List of CSV rows (each row is a list of strings)
+
+    Returns:
+        List of EventRow objects
+    """
+    if not csv_rows:
+        return []
 
     rows: List[EventRow] = []
-    with path.open("r", encoding="utf-8", newline="") as f:
-        reader = csv.reader(f)
-        for raw_row in reader:
-            # Skip empty lines
-            if not raw_row or all(not c.strip() for c in raw_row):
-                continue
 
+    # Check if first row is a header row by looking for column names with colons
+    first_row = csv_rows[0] if csv_rows else []
+    is_header_row = any(
+        col.strip().lower() in ["screen:", "component:", "section:", "element:", "action:", "event_details"]
+        for col in first_row
+    )
+
+    # If header row exists, find column indices
+    column_map = {}
+    start_idx = 0
+
+    if is_header_row:
+        start_idx = 1  # Skip header row
+        for idx, col_name in enumerate(first_row):
+            col_lower = col_name.strip().lower()
+            if col_lower == "screen:":
+                column_map["screen"] = idx
+            elif col_lower == "component:":
+                column_map["component"] = idx
+            elif col_lower == "section:":
+                column_map["section"] = idx
+            elif col_lower == "element:":
+                column_map["element"] = idx
+            elif col_lower == "action:":
+                column_map["action"] = idx
+            elif col_lower == "event_details":
+                column_map["event_details"] = idx
+            elif "advertisement" in col_lower:
+                column_map["advertisement"] = idx
+
+    # Process data rows
+    for raw_row in csv_rows[start_idx:]:
+        # Skip empty lines
+        if not raw_row or all(not c.strip() for c in raw_row):
+            continue
+
+        # Extract values based on header mapping or positional
+        if column_map:
+            # Use header-based mapping
+            screen = raw_row[column_map["screen"]].strip() if "screen" in column_map and column_map["screen"] < len(raw_row) else ""
+            section = raw_row[column_map["section"]].strip() if "section" in column_map and column_map["section"] < len(raw_row) else ""
+            component = raw_row[column_map["component"]].strip() if "component" in column_map and column_map["component"] < len(raw_row) else ""
+            element = raw_row[column_map["element"]].strip() if "element" in column_map and column_map["element"] < len(raw_row) else ""
+            action = raw_row[column_map["action"]].strip() if "action" in column_map and column_map["action"] < len(raw_row) else ""
+            event_details = raw_row[column_map["event_details"]].strip() if "event_details" in column_map and column_map["event_details"] < len(raw_row) else ""
+            advertisement = raw_row[column_map["advertisement"]].strip() if "advertisement" in column_map and column_map["advertisement"] < len(raw_row) else ""
+        else:
+            # Legacy positional format (backward compatibility)
             # We expect at least 5 columns (screen..action)
             if len(raw_row) < 5:
                 continue
@@ -141,14 +248,22 @@ def _parse_csv(path: Path) -> List[EventRow]:
             event_details = raw_row[5].strip()
             advertisement = raw_row[6].strip()
 
-            # Basic required columns check
-            if not (screen and section and component and element and action):
+        # Basic required columns check
+        if not (screen and section and component and element and action):
+            continue
+
+        # Check if section contains multiple variants
+        section_variants = _split_variants(section)
+
+        # Create an event row for each section variant
+        for section_variant in section_variants:
+            if not section_variant:
                 continue
 
             rows.append(
                 EventRow(
                     screen=screen,
-                    section=section,
+                    section=section_variant,
                     component=component,
                     element=element,
                     action=action,
@@ -157,6 +272,31 @@ def _parse_csv(path: Path) -> List[EventRow]:
                 )
             )
     return rows
+
+
+def _parse_csv(path: Path) -> List[EventRow]:
+    """
+    Parse CSV file into EventRow objects.
+
+    Args:
+        path: Path to CSV file
+
+    Returns:
+        List of EventRow objects
+
+    Raises:
+        FileNotFoundError: If file doesn't exist
+    """
+    if not path.is_file():
+        raise FileNotFoundError(f"Input file not found: {path}")
+
+    csv_rows: List[List[str]] = []
+    with path.open("r", encoding="utf-8", newline="") as f:
+        reader = csv.reader(f)
+        for raw_row in reader:
+            csv_rows.append(raw_row)
+
+    return _parse_csv_rows(csv_rows)
 
 
 def _deduplicate(rows: Iterable[EventRow]) -> List[EventRow]:
@@ -203,6 +343,41 @@ def _deduplicate(rows: Iterable[EventRow]) -> List[EventRow]:
     return list(by_key.values())
 
 
+def generate_swift_from_input(
+    input_source: InputSource,
+    output_path: Path,
+) -> int:
+    """
+    Load analytics events from an input source and write Swift tracking functions.
+
+    Args:
+        input_source: InputSource (CSV file or Google Sheets)
+        output_path: Path to output Swift file
+
+    Returns:
+        Number of functions generated
+
+    Raises:
+        FileNotFoundError: If input source is not accessible
+        ValueError: If input data is invalid
+    """
+    csv_rows = input_source.get_csv_rows()
+    rows = _parse_csv_rows(csv_rows)
+    rows = _deduplicate(rows)
+
+    lines: List[str] = ["// Auto-generated tracking functions", ""]
+
+    count = 0
+    for row in rows:
+        lines.append(_generate_function(row))
+        count += 1
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    return count
+
+
 def generate_swift_from_csv(
     input_path: Path,
     output_path: Path,
@@ -210,7 +385,19 @@ def generate_swift_from_csv(
     """
     Load analytics events from CSV and write Swift tracking functions.
 
-    Returns the number of functions generated.
+    This function is kept for backward compatibility.
+    New code should use generate_swift_from_input with FileInputSource.
+
+    Args:
+        input_path: Path to CSV file
+        output_path: Path to output Swift file
+
+    Returns:
+        Number of functions generated
+
+    Raises:
+        FileNotFoundError: If CSV file doesn't exist
+        ValueError: If CSV data is invalid
     """
     rows = _parse_csv(input_path)
     rows = _deduplicate(rows)

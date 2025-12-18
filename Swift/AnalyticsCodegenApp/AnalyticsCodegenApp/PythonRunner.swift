@@ -1,6 +1,6 @@
 import Foundation
 
-func runPythonGenerator(projectRoot: String, csvPath: String, outputPath: String) -> String {
+func runPythonGenerator(projectRoot: String, inputPath: String, outputPath: String) -> String {
     let process = Process()
     let pipe = Pipe()
     let errorPipe = Pipe()
@@ -12,7 +12,7 @@ func runPythonGenerator(projectRoot: String, csvPath: String, outputPath: String
     process.arguments = [
         "python3",
         "-m", "python.analytics_codegen.cli",
-        "--input", csvPath,
+        "--input", inputPath,
         "--output", outputPath
     ]
 
