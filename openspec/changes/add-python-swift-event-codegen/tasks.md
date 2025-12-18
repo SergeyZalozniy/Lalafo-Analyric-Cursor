@@ -5,10 +5,11 @@
 
 ## 2. Python Code Generator
 - [ ] 2.1 Scaffold a minimal Python project (dependencies, entrypoint script, basic CLI arguments).
-- [ ] 2.2 Implement parsing of the tabular event definition files into an internal Python model.
-- [ ] 2.3 Implement Swift code generation that produces functions with correct names, parameters, and types based on the internal model.
-- [ ] 2.4 Ensure the generator is idempotent and can safely overwrite existing generated Swift files.
-- [ ] 2.5 Add basic error reporting for malformed or missing event definitions.
+- [ ] 2.2 Implement parsing of the 7-column CSV event definition files into an internal Python model using the standard `csv` module (including quoted fields and newlines).
+- [ ] 2.3 Implement Swift code generation that produces functions with correct names, parameters, and types based on the internal model, mirroring the existing `generate_tracking.swift` behavior.
+- [ ] 2.4 Implement deduplication rules: treat identical rows as duplicates and keep only the first; when rows share the same identity but differ in `event_details`, keep the first and log a warning.
+- [ ] 2.5 Ensure the generator is idempotent and can safely overwrite existing generated Swift files.
+- [ ] 2.6 Add basic error reporting for malformed or missing event definitions.
 
 ## 3. Swift Integration
 - [ ] 3.1 Decide where generated Swift code lives (new file vs. marked regions inside existing files).
@@ -17,8 +18,14 @@
 
 ## 4. Tooling and Developer Experience
 - [ ] 4.1 Provide a simple command (e.g., `python -m ...` or `make`/script) to run the generator.
-- [ ] 4.2 Document how to add or update an analytics event using the tabular source and regenerate Swift code.
-- [ ] 4.3 (Optional) Wire the generator into CI or pre-commit hooks to catch out-of-date generated code.
+- [ ] 4.2 Implement a standalone macOS SwiftUI app that wraps the generator with:
+  - [ ] CSV file picker
+  - [ ] Output Swift path picker
+  - [ ] Platform segmented control with options `android`, `ios`, `web`, `web-mobile`, initially locked to `ios`
+  - [ ] Log area for stdout/stderr from the generator
+- [ ] 4.3 Persist last-used CSV and output paths using a small preferences manager so they are restored on launch.
+- [ ] 4.4 Document how to add or update an analytics event using the tabular source, regenerate Swift code from the CLI, and use the macOS UI.
+- [ ] 4.5 (Optional) Wire the generator into CI or pre-commit hooks to catch out-of-date generated code.
 
 ## 5. Validation and Testing
 - [ ] 5.1 Add unit tests for the Python parser and generator logic where appropriate.

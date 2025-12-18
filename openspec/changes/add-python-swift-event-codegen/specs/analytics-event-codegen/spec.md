@@ -1,10 +1,10 @@
 ## ADDED Requirements
 
 ### Requirement: Generate Swift analytics event functions from tabular definitions
-The system SHALL generate Swift functions for analytics events based on a structured tabular input (e.g., CSV or Excel) that defines events and their parameters.
+The system SHALL generate Swift functions for analytics events based on a structured 7-column CSV input that defines events and their parameters.
 
 #### Scenario: Successful generation from valid tabular file
-- **WHEN** a developer provides a valid tabular file that follows the agreed analytics event schema
+- **WHEN** a developer provides a valid CSV file that follows the agreed 7-column analytics event schema
 - **THEN** the Python generator SHALL produce Swift source files containing functions for each defined event
 - **AND** each generated function SHALL have parameters and types that correspond to the event definition in the tabular file.
 
@@ -12,6 +12,16 @@ The system SHALL generate Swift functions for analytics events based on a struct
 - **WHEN** the generator is run multiple times with the same valid tabular input
 - **THEN** the resulting generated Swift files SHALL be stable (no unintended changes beyond formatting)
 - **AND** only the intended generated files or regions SHALL be modified.
+
+#### Scenario: Deduplication of duplicate event rows
+- **WHEN** the CSV contains multiple identical rows for the same event identity (screen, section, component, element, action, advertisement)
+- **THEN** the generator SHALL produce a single Swift function for that identity
+- **AND** additional identical rows SHALL be ignored without changing the generated output.
+
+#### Scenario: Warning on conflicting row definitions
+- **WHEN** the CSV contains multiple rows that share the same event identity (screen, section, component, element, action, advertisement) but differ in `event_details`
+- **THEN** the generator SHALL keep the definition from the first such row
+- **AND** SHALL log a warning indicating that later conflicting rows were ignored.
 
 ### Requirement: Validate tabular analytics event schema
 The system SHALL validate the structure and content of the tabular input before generating Swift code.
